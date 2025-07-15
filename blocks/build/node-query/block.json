@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "prc-block/node-query",
+  "version": "1.0.0",
+  "title": "Node Query",
+  "category": "theme",
+  "description": "Query the Node by Node Type and Research Area.",
+  "attributes": {
+    "allowedBlocks": {
+      "type": "array"
+    },
+    "nodeType": {
+      "type": "object"
+    },
+    "researchArea": {
+      "type": "object"
+    },
+    "style": {
+      "type": "object",
+      "default": {
+        "spacing": {
+          "blockGap": "var:preset|spacing|20"
+        }
+      }
+    }
+  },
+  "supports": {
+    "anchor": true,
+    "html": false,
+    "spacing": {
+      "blockGap": true,
+      "margin": [
+        "top",
+        "bottom"
+      ],
+      "padding": true
+    },
+    "typography": {
+      "fontSize": true,
+      "__experimentalFontFamily": true
+    }
+  },
+  "textdomain": "node-query",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./index.css",
+  "style": "file:./style-index.css"
+}
