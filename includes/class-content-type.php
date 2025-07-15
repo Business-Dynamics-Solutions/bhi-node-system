@@ -199,8 +199,11 @@ class Content_Type {
 		$loader->add_action( 'pre_get_posts', $this, 'hide_former_node', 10, 1 );
 		$loader->add_filter( 'the_title', $this, 'indicate_former_node', 10, 1 );
 		$loader->add_filter( 'post_link', $this, 'modify_node_permalink', 10, 2 );
-		$loader->add_filter( 'prc_sitemap_supported_taxonomies', $this, 'opt_into_sitemap', 10, 1 );
-	}
+                $loader->add_filter( 'prc_sitemap_supported_taxonomies', $this, 'opt_into_sitemap', 10, 1 );
+
+                $loader->add_action( 'add_meta_boxes', $this, 'register_post_fieldsets_meta_box' );
+                $loader->add_action( 'save_post', $this, 'save_post_fieldsets_meta' );
+        }
 
 	/**
 	 * Get the enabled post types.
@@ -341,110 +344,6 @@ class Content_Type {
 			},
 		] );
 
-		class PRC_Content_Type_Post {
-
-	public function __construct() {
-		add_action('add_meta_boxes', [$this, 'add_meta_boxes']);
-		add_action('save_post', [$this, 'save_meta']);
-	}
-
-	public function add_meta_boxes() {
-		add_meta_box(
-			'prc_post_meta',
-			__('Post Metadata', 'prc'),
-			[$this, 'render_meta_box'],
-			'post',
-			'normal',
-			'default'
-		);
-	}
-
-	public function render_meta_box($post) {
-		$meta = [];
-		$fields = [
-			'date_from', 'date_to', 'date_string', 'date_label',
-			'geo_lat', 'geo_long', 'geo_label', 'geo_coordinates',
-			'narrative_country', 'narrative_content'
-		];
-		foreach ($fields as $field) {
-			$meta[$field] = get_post_meta($post->ID, $field, true);
-		}
-
-		echo '<table class="form-table"><tbody>';
-
-		// Date group
-		echo '<tr><th colspan="2"><h4>' . esc_html__('Date Info', 'prc') . '</h4></th></tr>';
-		echo self::render_row('date_from', 'Date From (YYYY-MM-DD)', $meta['date_from']);
-		echo self::render_row('date_to', 'Date To (YYYY-MM-DD)', $meta['date_to']);
-		echo self::render_row('date_string', 'Date (Text)', $meta['date_string']);
-		echo self::render_row('date_label', 'Date Label', $meta['date_label']);
-
-		// Geo group
-		echo '<tr><th colspan="2"><h4>' . esc_html__('Geo Info', 'prc') . '</h4></th></tr>';
-		echo self::render_row('geo_lat', 'Latitude', $meta['geo_lat']);
-		echo self::render_row('geo_long', 'Longitude', $meta['geo_long']);
-		echo self::render_row('geo_coordinates', 'Coordinates (WKT or JSON)', $meta['geo_coordinates']);
-		echo self::render_row('geo_label', 'Geo Label', $meta['geo_label']);
-
-		// Narrative group
-		echo '<tr><th colspan="2"><h4>' . esc_html__('Narrative', 'prc') . '</h4></th></tr>';
-		echo self::render_country_dropdown_row('narrative_country', 'Country', $meta['narrative_country']);
-		echo self::render_textarea_row('narrative_content', 'Narrative Content', $meta['narrative_content']);
-
-		echo '</tbody></table>';
-	}
-
-	public function save_meta($post_id) {
-		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
-		if (!current_user_can('edit_post', $post_id)) return;
-
-		$fields = [
-			'date_from', 'date_to', 'date_string', 'date_label',
-			'geo_lat', 'geo_long', 'geo_label', 'geo_coordinates',
-			'narrative_country', 'narrative_content'
-		];
-
-		foreach ($fields as $field) {
-			if (isset($_POST[$field])) {
-				update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
-			}
-		}
-	}
-
-	private static function render_row($name, $label, $value) {
-		return '<tr><th><label for="'.$name.'">'.$label.'</label></th><td><input type="text" name="'.$name.'" id="'.$name.'" value="'.esc_attr($value).'" class="regular-text" /></td></tr>';
-	}
-
-	private static function render_textarea_row($name, $label, $value) {
-		return '<tr><th><label for="'.$name.'">'.$label.'</label></th><td><textarea name="'.$name.'" id="'.$name.'" class="large-text" rows="4">'.esc_textarea($value).'</textarea></td></tr>';
-	}
-
-	private static function render_country_dropdown_row($name, $label, $selected) {
-		$countries = self::get_country_list();
-		$html = '<tr><th><label for="'.$name.'">'.$label.'</label></th><td>';
-		$html .= '<select name="'.$name.'" id="'.$name.'" class="regular-text">';
-		$html .= '<option value="">— Select Country —</option>';
-		foreach ($countries as $code => $info) {
-			$flag = $info['flag'];
-			$label = $info['name'];
-			$html .= '<option value="'.esc_attr($code).'" '.selected($selected, $code, false).'>'.$flag.' '.$label.'</option>';
-		}
-		$html .= '</select></td></tr>';
-		return $html;
-	}
-
-	private static function get_country_list() {
-		return [
-			'UA' => ['name' => 'Ukraine', 'flag' => '🇺🇦'],
-			'RU' => ['name' => 'Russia', 'flag' => '🇷🇺'],
-			'DE' => ['name' => 'Germany', 'flag' => '🇩🇪'],
-			'FR' => ['name' => 'France', 'flag' => '🇫🇷'],
-			'NL' => ['name' => 'Netherlands', 'flag' => '🇳🇱'],
-			'US' => ['name' => 'United States', 'flag' => '🇺🇸'],
-			'CN' => ['name' => 'China', 'flag' => '🇨🇳'],
-			];
-		}
-	}
 
 
 
@@ -723,14 +622,16 @@ class Content_Type {
 			foreach ($group_fields as $field) {
 				$value = get_post_meta($post->ID, $field, true);
 				echo '<p><label for="' . $field . '">' . esc_html($field) . ':</label><br />';
-				if ($field === 'narrative_country') {
-					echo '<select name="' . $field . '" id="' . $field . '">';
-					\$countries = json_decode(file_get_contents(__DIR__ . '/countries.json'), true);
-					foreach (\$countries as \$code => \$label) {
-						\$selected = selected(\$value, \$code, false);
-						echo "<option value='\$code' \$selected>\$label (\$code)</option>";
-					}
-					echo '</select>';
+                                if ($field === 'narrative_country') {
+                                        echo '<select name="' . $field . '" id="' . $field . '">';
+                                        $countries = self::get_country_list();
+                                        foreach ( $countries as $code => $info ) {
+                                                $flag     = $info['flag'];
+                                                $label    = $info['name'];
+                                                $selected = selected( $value, $code, false );
+                                                echo "<option value='{$code}' {$selected}>{$flag} {$label}</option>";
+                                        }
+                                        echo '</select>';
 				} else {
 					echo '<input type="text" name="' . $field . '" id="' . $field . '" value="' . esc_attr($value) . '" style="width:100%;" />';
 				}
@@ -743,20 +644,34 @@ class Content_Type {
 	/**
 	 * Save the custom meta fields.
 	 */
-	public function save_post_fieldsets_meta($post_id) {
-		if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
-		if (!current_user_can('edit_post', $post_id)) return;
+        public function save_post_fieldsets_meta($post_id) {
+                if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+                if (!current_user_can('edit_post', $post_id)) return;
 
-		$fields = ['date_from', 'date_to', 'date_string', 'date_label', 'geo_lat', 'geo_long', 'geo_label', 'geo_coordinates', 'narrative_country', 'narrative_content'];
-		foreach ($fields as $field) {
-			if (isset($_POST[$field])) {
-				update_post_meta($post_id, $field, sanitize_text_field($_POST[$field]));
-			}
-		}
-	}
+                $fields = [ 'date_from', 'date_to', 'date_string', 'date_label', 'geo_lat', 'geo_long', 'geo_label', 'geo_coordinates', 'narrative_country', 'narrative_content' ];
+                foreach ( $fields as $field ) {
+                        if ( isset( $_POST[ $field ] ) ) {
+                                update_post_meta( $post_id, $field, sanitize_text_field( $_POST[ $field ] ) );
+                        }
+                }
+        }
 
+        /**
+         * Retrieve a list of countries for the narrative dropdown.
+         *
+         * @return array
+         */
+        private static function get_country_list() {
+                return [
+                        'UA' => [ 'name' => 'Ukraine',       'flag' => '🇺🇦' ],
+                        'RU' => [ 'name' => 'Russia',        'flag' => '🇷🇺' ],
+                        'DE' => [ 'name' => 'Germany',       'flag' => '🇩🇪' ],
+                        'FR' => [ 'name' => 'France',        'flag' => '🇫🇷' ],
+                        'NL' => [ 'name' => 'Netherlands',   'flag' => '🇳🇱' ],
+                        'US' => [ 'name' => 'United States', 'flag' => '🇺🇸' ],
+                        'CN' => [ 'name' => 'China',         'flag' => '🇨🇳' ],
+                ];
+        }
 
-add_action('add_meta_boxes', [ $this, 'register_post_fieldsets_meta_box' ]);
-add_action('save_post', [ $this, 'save_post_fieldsets_meta' ]);
 
 }
